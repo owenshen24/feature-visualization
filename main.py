@@ -26,6 +26,4 @@ batch = torch.unsqueeze(img, 0)
 
 resnet50.eval()
 probs = F.softmax(resnet50(batch), dim=1)
-
 print_probs(probs[0])
-

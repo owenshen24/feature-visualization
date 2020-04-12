@@ -5,11 +5,14 @@ with open('imagenet_classes.txt') as f:
     classes = [line.strip() for line in f.readlines()]
 
 def print_probs(probs, print_zeros: Optional[bool] = False):
-    # Prints highest probability Imagenet under given distribution
-    # print_zeros: whether or not to print low probability classes
+    '''Prints distribution of Imagenet classes under given distribution
+    print_zeros: whether or not to print low probability classes
+    '''
+
     global classes
 
     assert len(probs) == 1000, "probabilities must be length 1000"
+    assert abs(sum(probs)-1) < .01, "probabilities must sum to near 1"
 
     probs = [float(p) for p in probs]
     
