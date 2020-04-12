@@ -10,7 +10,6 @@ def print_probs(probs, print_zeros: Optional[bool] = False):
     global classes
 
     assert len(probs) == 1000, "probabilities must be length 1000"
-    assert sum(probs) == 1, "probabilities must sum to 1"
 
     probs = [float(p) for p in probs]
     
