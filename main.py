@@ -2,6 +2,9 @@ import torch
 import torch.nn.functional as F
 from torchvision import models, transforms
 from PIL import Image
+from utils import print_probs
+
+
 
 resnet18 = models.resnet18(pretrained=True)
 
@@ -19,5 +22,7 @@ img = transform(Image.open("waterfall.jpg"))
 batch = torch.unsqueeze(img, 0)
 
 resnet18.eval()
-probs = F.softmax(resnet18(batch))
-print(probs.argmax())
+probs = F.softmax(resnet18(batch), dim=1)
+
+print_probs(probs[0])
+
