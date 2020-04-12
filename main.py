@@ -1,13 +1,21 @@
+import torch
+import torch.nn.functional as F
 from torchvision import models, transforms
+from PIL import Image
 
 resnet18 = models.resnet18(pretrained=True)
 
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+    ])
 
-'''
-All pre-trained models expect input images normalized in the same way, 
-i.e. mini-batches of 3-channel RGB images of shape (3 x H x W), 
-where H and W are expected to be at least 224. The images have to be loaded in to a range of [0, 1] 
-and then normalized using mean = [0.485, 0.456, 0.406] and std = [0.229, 0.224, 0.225].
-'''
+# Note: for first test picture, after ToTensor(), image already loaded in to a range of [0,1]
+
+img = transform(Image.open("waterfall.jpg"))
+batch = torch.unsqueeze(img, 0)
+
+resnet18.eval()
+probs = F.softmax(resnet18(batch))
+print(probs.argmax())
