@@ -9,5 +9,7 @@ From the above link:
 
 ## References
 https://www.learnopencv.com/pytorch-for-beginners-image-classification-using-pre-trained-models/
+
 https://pytorch.org/docs/master/torchvision/transforms.html#conversion-transforms
+
 https://pytorch.org/docs/stable/index.html
