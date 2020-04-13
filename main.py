@@ -21,7 +21,7 @@ else:
 # ~~~~~~~~~~~~~~~~~~~
 
 learning_rate = .01
-n_iterations = 100
+n_iterations = 20
 layers = [7, 8, 9] # For resnet50, layer can range from 0 to 9
 
 # ~~~~~~~~~~~~~~~~~~~
@@ -35,13 +35,13 @@ net = models.resnet50(pretrained=True).to(device)
 net.eval()
 
 # preprocess image
-img = Image.open("dog1.jpg")
+img = Image.open("dog2.jpg")
 # img.show()
 img = transform(img).to(device)
 img = torch.unsqueeze(img, 0)
 
 # normalize learning rate for number of octaves
-learning_rate = learning_rate / len(octaves)
+learning_rate = learning_rate / len(layers)
 
 children = list(net.children())
 for i in range(len(layers)):
@@ -55,7 +55,7 @@ for _ in range(n_iterations):
         img = img.detach()
 
         img.requires_grad = True
-        logits = octave(img)
+        logits = layer(img)
         loss = -(logits**2).mean()
         loss.backward()
 
@@ -71,6 +71,7 @@ for _ in range(n_iterations):
         
         # undo jitter
         img = torch.roll(img, shifts=(-y_jitter, -x_jitter), dims=(-2, -1))
+        print(loss)
 
 
 img = img[0].cpu()
