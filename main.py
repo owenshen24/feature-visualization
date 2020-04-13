@@ -1,65 +1,72 @@
 from typing import Dict, List, Optional
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
-from utils import print_probs
+from utils import print_probs, transform, inverse_transform
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
 
-resnet50 = models.resnet50(pretrained=True).to(device)
+
+# CONFIG
+# ~~~~~~~~~~~~~~~~~~~
+
+learning_rate = .01
+octaves = [5, 6, 7,8,9] # For resnet50, octaves range from 0 to 9
+
+# ~~~~~~~~~~~~~~~~~~~
 
 
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+mean = [.485, .456, .406]
+std = [.229, .224, .225]
 
-transform = transforms.Compose([
-    # transforms.Resize(256),
-    # transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
-    ])
+net = models.resnet50(pretrained=True).to(device)
+net.eval()
 
-# https://discuss.pytorch.org/t/simple-way-to-inverse-transform-normalization/4821/3
-inverse_transform = transforms.Compose([
-    transforms.Normalize(mean = [ 0., 0., 0. ],
-                         std = [ 1/0.229, 1/0.224, 1/0.225 ]),
-    transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ],
-                         std = [ 1., 1., 1. ]),
-    transforms.ToPILImage()
-    ])
-
-# Note: for first test picture, after ToTensor(),
-# image already loaded in to a range of [0,1]
-
-img = transform(Image.open("dog3.jpg")).to(device)
+img = Image.open("dog1.jpg")
+img.show()
+img = transform(img).to(device)
 img = torch.unsqueeze(img, 0)
 
-img.requires_grad = True
-learning_rate = .001
-resnet50.eval()
+learning_rate = learning_rate / len(octaves)
+
+for i in range(len(octaves)):
+    octaves[i] = nn.Sequential(*list(net.children())[:octaves[i]-10])
 
 for _ in range(100):
-    height, width = np.random.randint(-40, 40, size=2)
-    img = torch.roll(img, shifts=(height, width), dims=(-2, -1)).detach()
-    img.requires_grad = True
-    logits = resnet50(img)
-    loss = -(logits**2).sum()
-    loss.backward()
-    g = img.grad
+    for octave in octaves:
+        # apply jitter
+        y_jitter, x_jitter = np.random.randint(-16, 16, size=2)
+        img = torch.roll(img, shifts=(y_jitter, x_jitter), dims=(-2, -1)).detach()
 
-    img = img + learning_rate*g/(g.abs().mean())
-    img = torch.roll(img, shifts=(-height, -width), dims=(-2, -1))
+        img.requires_grad = True
+        logits = octave(img)
+        loss = -(logits**2).mean()
+        loss.backward()
+
+        g = img.grad.data
+        g = g/g.abs().mean()
+        img = img - learning_rate*g
+
+        # Normalize image https://github.com/eriklindernoren/PyTorch-Deep-Dream
+        for c in range(3):
+            m, s = mean[c], std[c]
+            img[0][c] = torch.clamp(img[0][c], -m/s, (1-m)/s)
+        
+        # undo jitter
+        img = torch.roll(img, shifts=(-y_jitter, -x_jitter), dims=(-2, -1))
+
 
 img = img[0].cpu()
 img = inverse_transform(img)
+
 img.show()

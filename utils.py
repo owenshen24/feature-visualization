@@ -1,5 +1,8 @@
 from typing import Optional, List
 
+from torchvision import transforms
+
+
 
 with open('imagenet_classes.txt') as f:
     classes = [line.strip() for line in f.readlines()]
@@ -25,3 +28,18 @@ def print_probs(probs, print_zeros: Optional[bool] = False):
     for p in sorted_probs:
         if print_zeros or round(float(100*p), 2) != 0:
             print(f'{round(float(100*p), 2):<5} | {d[p]}')
+
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+    ])
+
+# https://discuss.pytorch.org/t/simple-way-to-inverse-transform-normalization/4821/3
+inverse_transform = transforms.Compose([
+    transforms.Normalize(mean = [ 0., 0., 0. ],
+                         std = [ 1/0.229, 1/0.224, 1/0.225 ]),
+    transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ],
+                         std = [ 1., 1., 1. ]),
+    transforms.ToPILImage()
+    ])
