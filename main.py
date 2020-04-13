@@ -22,31 +22,35 @@ else:
 
 learning_rate = .01
 n_iterations = 100
-octaves = [5, 6, 7, 8, 9] # For resnet50, octaves range from 0 to 9
+octaves = [7, 8, 9] # For resnet50, octaves range from 0 to 9
 
 # ~~~~~~~~~~~~~~~~~~~
 
-
+# set mean and std_deviation for imagenet
 mean = [.485, .456, .406]
 std = [.229, .224, .225]
 
+# initialize net
 net = models.resnet50(pretrained=True).to(device)
 net.eval()
 
+# preprocess image
 img = Image.open("dog1.jpg")
-img.show()
+# img.show()
 img = transform(img).to(device)
 img = torch.unsqueeze(img, 0)
 
+# normalize learning rate for number of octaves
 learning_rate = learning_rate / len(octaves)
 
+children = list(net.children())
 for i in range(len(octaves)):
-    octaves[i] = nn.Sequential(*list(net.children())[:octaves[i]-10])
+    octaves[i] = nn.Sequential(*children)[:octaves[i]-len(children)]
 
 for _ in range(n_iterations):
     for octave in octaves:
         # apply jitter
-        y_jitter, x_jitter = np.random.randint(-16, 16, size=2)
+        y_jitter, x_jitter = np.random.randint(-32, 32, size=2)
         img = torch.roll(img, shifts=(y_jitter, x_jitter), dims=(-2, -1))
         img = img.detach()
 
