@@ -22,7 +22,7 @@ else:
 
 learning_rate = .01
 n_iterations = 100
-octaves = [7, 8, 9] # For resnet50, octaves range from 0 to 9
+layers = [7, 8, 9] # For resnet50, layer can range from 0 to 9
 
 # ~~~~~~~~~~~~~~~~~~~
 
@@ -44,11 +44,11 @@ img = torch.unsqueeze(img, 0)
 learning_rate = learning_rate / len(octaves)
 
 children = list(net.children())
-for i in range(len(octaves)):
-    octaves[i] = nn.Sequential(*children)[:octaves[i]-len(children)]
+for i in range(len(layers)):
+    layers[i] = nn.Sequential(*children)[:layers[i]-len(children)]
 
 for _ in range(n_iterations):
-    for octave in octaves:
+    for layer in layers:
         # apply jitter
         y_jitter, x_jitter = np.random.randint(-32, 32, size=2)
         img = torch.roll(img, shifts=(y_jitter, x_jitter), dims=(-2, -1))

@@ -30,8 +30,8 @@ def print_probs(probs, print_zeros: Optional[bool] = False):
             print(f'{round(float(100*p), 2):<5} | {d[p]}')
 
 transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
+    # transforms.Resize(256),
+    # transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406],
                          std=[0.229, 0.224, 0.225])
