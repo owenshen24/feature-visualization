@@ -6,6 +6,7 @@ import torch.optim as optim
 from torchvision import models, transforms
 from PIL import Image
 import numpy as np
+from copy import deepcopy
 
 from utils import print_probs
 
@@ -44,20 +45,20 @@ img = transform(Image.open("dog3.jpg")).to(device)
 img = torch.unsqueeze(img, 0)
 
 img.requires_grad = True
-optimizer = optim.SGD([img], lr=.01)
+learning_rate = .001
 resnet50.eval()
 
-for _ in range(1):
-    height, width = np.random.randint(-32, 32, size=2)
-    torch.roll(img, shifts=(height, width), dims=(-2, -1))
-
+for _ in range(100):
+    height, width = np.random.randint(-40, 40, size=2)
+    img = torch.roll(img, shifts=(height, width), dims=(-2, -1)).detach()
+    img.requires_grad = True
     logits = resnet50(img)
     loss = -(logits**2).sum()
-    optimizer.zero_grad()
     loss.backward()
     g = img.grad
-    img.grad = g/(g.abs().mean())
-    optimizer.step()
+
+    img = img + learning_rate*g/(g.abs().mean())
+    img = torch.roll(img, shifts=(-height, -width), dims=(-2, -1))
 
 img = img[0].cpu()
 img = inverse_transform(img)
