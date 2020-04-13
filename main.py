@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+import time
 
 import torch
 import torch.nn as nn
@@ -7,8 +8,8 @@ from torchvision import models, transforms
 from PIL import Image
 import numpy as np
 import scipy.ndimage as nd
-from copy import deepcopy
 import matplotlib.pyplot as plt
+import psutil
 
 from utils import print_probs, transform, inverse_transform
 
@@ -21,11 +22,11 @@ else:
 # CONFIG
 # ~~~~~~~~~~~~~~~~~~~
 
-learning_rate = .1
-n_iterations = 10
-layers = [7] # For resnet50, layer can range from 0 to 9
+learning_rate = .04
+n_iterations = 100
+layers = [6,7,8,9] # For resnet50, layer can range from 0 to 9
 n_octaves = 4
-octave_scale = 1.7
+octave_scale = 1.4
 
 # ~~~~~~~~~~~~~~~~~~~
 
@@ -37,11 +38,13 @@ std = [.229, .224, .225]
 net = models.resnet50(pretrained=True).to(device)
 net.eval()
 
-# preprocess image
-img = Image.open("dog1.jpg")
-# img.show()
-img = transform(img).to(device)
-img = torch.unsqueeze(img, 0)
+# # preprocess image
+# img = Image.open("dog1.jpg")
+# # img.show()
+# img = transform(img).to(device)
+# img = torch.unsqueeze(img, 0)
+
+img = torch.rand(1, 3, 255, 255)
 
 # normalize learning rate
 learning_rate = learning_rate / (len(layers)*n_octaves)
@@ -61,7 +64,9 @@ octave_imgs.reverse()
 
 
 for octave, octave_img in enumerate(octave_imgs):
-
+    im = img[0].cpu()
+    im = inverse_transform(im)
+    im.show()
     h, w = octave_img.shape[-2:]
     if octave > 0:
         # upscale previous octave's details
@@ -105,5 +110,10 @@ for octave, octave_img in enumerate(octave_imgs):
 
 img = img[0].cpu()
 img = inverse_transform(img)
-
 img.show()
+
+time.sleep(5)
+
+for proc in psutil.process_iter():
+    if proc.name() == "display":
+        proc.kill()
