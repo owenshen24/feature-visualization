@@ -21,7 +21,8 @@ else:
 # ~~~~~~~~~~~~~~~~~~~
 
 learning_rate = .01
-octaves = [5, 6, 7,8,9] # For resnet50, octaves range from 0 to 9
+n_iterations = 100
+octaves = [5, 6, 7, 8, 9] # For resnet50, octaves range from 0 to 9
 
 # ~~~~~~~~~~~~~~~~~~~
 
@@ -42,7 +43,7 @@ learning_rate = learning_rate / len(octaves)
 for i in range(len(octaves)):
     octaves[i] = nn.Sequential(*list(net.children())[:octaves[i]-10])
 
-for _ in range(100):
+for _ in range(n_iterations):
     for octave in octaves:
         # apply jitter
         y_jitter, x_jitter = np.random.randint(-16, 16, size=2)
