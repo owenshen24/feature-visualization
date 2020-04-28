@@ -1,16 +1,17 @@
-from typing import Dict, List, Optional
 import time
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models, transforms
-from PIL import Image
 import numpy as np
 import scipy.ndimage as nd
 import psutil
+import argparse
 
+from torchvision import models, transforms
+from typing import Dict, List, Optional
+from PIL import Image
 from utils import print_probs, transform, inverse_transform
+from config import config_list
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
@@ -23,13 +24,25 @@ net.eval()
 
 #~~~~~~~ CONFIG ~~~~~~~~~~
 
-learning_rate = 0.25
-n_iterations = 100
-n_octaves = 3
-octave_scale = 1.4
+# load config
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', nargs='?', default="default")
+    try:
+        config = config_list[parser.parse_args().config]
+    except KeyError:
+        print("config not found, using default")
+        config = config_list[default]
+
+learning_rate = config.learning_rate
+n_iterations = config.n_iterations
+
+if config.use_octaves:
+    n_octaves = config.n_octaves
+    octave_scale = config.octave_scale
 
 # Each layer in this list represents the first however many layers of the net
-layers = [10,11,12] 
+layers = [] 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -42,19 +55,14 @@ for i in range(len(layers)):
     layers[i] = nn.Sequential(*children)[:layers[i]]
 
 # preprocess image
-img = Image.open("images/dog5.jpg")
-# img.show()
-img = transform(img).to(device)
-img = torch.unsqueeze(img, 0)
+# img = Image.open("images/dog5.jpg")
+# img = transform(img).to(device)
+# img = torch.unsqueeze(img, 0)
 
-#img = torch.rand(1, 3, 500, 500)
+img = torch.rand(1, 3, 500, 500)
 
 # deep copy the image
-img_copy = img.clone().detach()
-
-# normalize learning rate
-# learning_rate = learning_rate / (len(layers)*n_octaves)
-
+#img_copy = img.clone().detach()
 
 def optimize_image(img, n_iterations, layers, learning_rate):
     for _ in range(n_iterations):
@@ -84,6 +92,8 @@ def optimize_image(img, n_iterations, layers, learning_rate):
             img = torch.roll(img, shifts=(-y_jitter, -x_jitter), dims=(-2, -1))
     
     return img
+
+
 
 def deep_dream_with_octaves(img, n_iterations, layers,
                             learning_rate, n_octaves, octave_scale):
@@ -123,16 +133,13 @@ def deep_dream_with_octaves(img, n_iterations, layers,
 
 
 
-
-print(print_probs(F.softmax(net(img), dim=1)[0]))
+# print(print_probs(F.softmax(net(img), dim=1)[0]))
 # print_probs(F.softmax(net(img)))
 
-for proc in psutil.process_iter():
-    if proc.name() == "display":
-        proc.kill()
+# for proc in psutil.process_iter():
+#     if proc.name() == "display":
+#         proc.kill()
 
 img = img[0].cpu()
 img = inverse_transform(img)
 img.show()
-
-time.sleep(5)

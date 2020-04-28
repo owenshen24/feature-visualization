@@ -1,24 +1,5 @@
 from typing import Optional, List
-import typing
-
 from torchvision import transforms
-
-
-
-class Config(typing.NamedTuple):
-
-    state_dim: int
-    observation_dim: int
-    action_space_size: int
-    n_initial_observations: int = 5
-    n_unroll_steps: int = 10
-    discount: float = 1
-    temp: float = .5
-    c1: float = 1.25
-    c2: float = 19652
-    root_dirichlet_alpha: float = .25
-    root_exploration_fraction: float = .25
-
 
 def print_probs(probs, print_zeros: Optional[bool] = False):
     '''Prints distribution of Imagenet classes under given distribution
