@@ -6,10 +6,12 @@ def print_probs(probs, print_zeros: Optional[bool] = False):
     print_zeros: whether or not to print low probability classes
     '''
 
-    with open('imagenet_classes.txt') as f:
-        classes = [line.strip() for line in f.readlines()]
+    
     assert len(probs) == 1000, "probabilities must be length 1000"
     assert abs(sum(probs)-1) < .01, "probabilities must sum to near 1"
+
+    with open('imagenet_classes.txt') as f:
+        classes = [line.strip() for line in f.readlines()]
 
     probs = [float(p) for p in probs]
     
