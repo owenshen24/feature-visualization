@@ -32,7 +32,7 @@ if __name__ == '__main__':
         config = config_list[parser.parse_args().config]
     except KeyError:
         print("config not found, using default")
-        config = config_list[default]
+        config = config_list["default"]
 
 learning_rate = config.learning_rate
 n_iterations = config.n_iterations
