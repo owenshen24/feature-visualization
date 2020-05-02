@@ -6,19 +6,24 @@ class Config(typing.NamedTuple):
     use_octaves: bool
     n_octaves: int
     octave_scale: float
+    layers: list
 
 config_list = {}
+
 config_list["default"] = Config(
     0.25,
     10,
     True,
     3,
-    1.4
+    1.4,
+    [3,4]
 )
+
 config_list["owen"] = Config(
     0.05,
     10,
     False,
     0,
-    0
+    0,
+    [3,4]
 )

@@ -1,145 +1,139 @@
+from typing import Dict, List, Tuple, Optional
 import time
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import models, transforms
+
+from PIL import Image
 import numpy as np
 import scipy.ndimage as nd
+import matplotlib.pyplot as plt
 import psutil
-import argparse
 
-from torchvision import models, transforms
-from typing import Dict, List, Optional
-from PIL import Image
-from utils import print_probs, transform, inverse_transform
-from config import config_list
+from utils import transform, inverse_transform, Hook
+
+from guided_filter_pytorch.guided_filter import GuidedFilter
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
+
+
+def normalize_img(img: torch.Tensor) -> None:
+    # mean and std_deviation for imagenet
+    mean = [.485, .456, .406]
+    std = [.229, .224, .225]
+
+    # from https://github.com/eriklindernoren/PyTorch-Deep-Dream
+    for c in range(3):
+        m, s = mean[c], std[c]
+        img[0][c].clamp(-m/s, (1-m)/s)
+
+
+def optimize(img: torch.Tensor, net: nn.Module, objective: str, layer: str,
+      channel: Optional[int] = None, neuron_coord: Optional[Tuple[int]]= None, ) -> torch.Tensor:
+    global device
     
-# initialize net and set to evaluation mode
-net = models.googlenet(pretrained=True).to(device);
+    assert len(img.shape) == 4 and img.shape[1] == 3, "input must be image(s)"
+    assert objective in {"deepdream", "channel", "neuron"}, \
+            "objective must be 'deepdream', 'channel', or 'neuron'"
+    # assert layer in dict(net.named_parameters()).keys()
+    
+    if objective is "channel":
+        assert isinstance(channel, int)
+    elif objective is "neuron":
+        assert isinstance(channel, int)
+        assert isinstance(neuron_coord, Tuple[int])
+        assert len(neuron_coord) == 2
+        assert neuron[0] < img.shape[1] and neuron[1] < img.shape[2]
+
+    def loss_fn(output: torch.Tensor, objective: str) -> torch.Tensor:
+        if objective is "deepdream":
+            loss = ((output)**2).mean()
+        elif objective is "channel":
+            loss = output[:,channel].mean()
+        elif objective is "neuron":
+            loss = output[:,channel,neuron_coord[0], neuron_coord[1]].mean()
+
+        return loss
+
+    def total_variation(img: torch.Tensor, beta=1.4) -> torch.Tensor:
+        differences = ((torch.roll(img, shifts=(0,1), dims=(-2,-1))-img)**2+
+                        (torch.roll(img, shifts=(1,0), dims=(-2,-1))-img)**2)**(beta/2)
+        out = differences.mean()
+        return out
+
+    gf = GuidedFilter(3, .2)
+    guided_filter = lambda x: gf(x,x)
+
+    module = net
+    for l in layer.split("."):
+        module = module._modules[l]
+
+    activation_hook = Hook(module)
+
+    normalize_img(img)
+    img.requires_grad = True
+    grad_hook = Hook(img, backward=True, 
+                     hook_fn = lambda x: x/(x.abs().mean()+1e-4))
+
+    optimizer = torch.optim.Adam([img], lr=.05)
+
+    for i in range(100):
+        # apply jitter
+        y_jitter, x_jitter = np.random.randint(-32, 32, size=2)
+        img.roll(shifts=(y_jitter, x_jitter), dims=(-2, -1))
+
+        # the activation hook throws an error, so the net only processes
+        # as much as it needs to in order to get the activation_hook.output
+        try:
+            _ = net(guided_filter(img))
+        except:
+            pass
+
+        # print(loss_fn(activation_hook.output, objective))
+        # print(total_variation(img))
+        loss = loss_fn(activation_hook.output, objective) + .01*total_variation(img)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        normalize_img(img)
+        
+        # undo jitter
+        img.roll(shifts=(-y_jitter, -x_jitter), dims=(-2, -1))
+    grad_hook.close()
+    activation_hook.close()
+
+    return img
+
+
+
+net = models.googlenet(pretrained=True).to(device)
 net.eval()
 
-#~~~~~~~ CONFIG ~~~~~~~~~~
-
-# load config
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('config', nargs='?', default="default")
-    try:
-        config = config_list[parser.parse_args().config]
-    except KeyError:
-        print("config not found, using default")
-        config = config_list["default"]
-
-learning_rate = config.learning_rate
-n_iterations = config.n_iterations
-
-if config.use_octaves:
-    n_octaves = config.n_octaves
-    octave_scale = config.octave_scale
-
-# Each layer in this list represents the first however many layers of the net
-layers = [] 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# set image color mean and std_deviation for imagenet
-mean = [.485, .456, .406]
-std = [.229, .224, .225]
-
-children = list(net.children())
-for i in range(len(layers)):
-    layers[i] = nn.Sequential(*children)[:layers[i]]
 
 # preprocess image
-# img = Image.open("images/dog5.jpg")
+# img = Image.open("dog1.jpg")
 # img = transform(img).to(device)
 # img = torch.unsqueeze(img, 0)
 
-img = torch.rand(1, 3, 500, 500)
+img = torch.rand(1, 3, 144, 144).to(device)
 
-# deep copy the image
-#img_copy = img.clone().detach()
-
-def optimize_image(img, n_iterations, layers, learning_rate):
-    for _ in range(n_iterations):
-        for layer in layers:
-            # apply jitter
-            y_jitter, x_jitter = np.random.randint(-32, 32, size=2)
-            img = torch.roll(img, shifts=(y_jitter, x_jitter), dims=(-2, -1))
-            img = img.detach()
-
-            img.requires_grad = True
-            logits = layer(img)
-            loss = -(logits**2).mean()
-            #loss = -(logits[0][0]**2).mean()
-            loss.backward()
-
-            g = img.grad.data
-            g = g/g.abs().mean()
-            img = img - learning_rate*g
-
-            # Normalize image 
-            # from https://github.com/eriklindernoren/PyTorch-Deep-Dream
-            for c in range(3):
-                m, s = mean[c], std[c]
-                img[0][c] = torch.clamp(img[0][c], -m/s, (1-m)/s)
-            
-            # undo jitter
-            img = torch.roll(img, shifts=(-y_jitter, -x_jitter), dims=(-2, -1))
-    
-    return img
-
-
-
-def deep_dream_with_octaves(img, n_iterations, layers,
-                            learning_rate, n_octaves, octave_scale):
-    
-    # Each item of octave_imgs
-    # is a zoomed-in (i.e. lower-res) version of the previous image
-    octave_imgs = [img[0].cpu().numpy()]
-    for i in range(n_octaves-1):
-        new_octave_img = nd.zoom(octave_imgs[-1], 
-                                 (1, 1.0/octave_scale, 1.0/octave_scale),
-                                 order=2)
-        octave_imgs.append(new_octave_img)
-    for i in range(len(octave_imgs)):
-        octave_imgs[i] = torch.tensor(octave_imgs[i]).unsqueeze(0).float().to(device)
-
-    for octave, octave_img in enumerate(octave_imgs):
-        im = img[0].cpu()
-        im = inverse_transform(im)
-        h, w = octave_img.shape[-2:]
-        if octave > 0:
-            # upscale previous octave's details
-            h1, w1 = detail.shape[-2:]
-            detail = detail[0].cpu().detach().numpy()
-            detail = nd.zoom(detail, (1, 1.0*h/h1, 1.0*w/w1), order=1)
-            detail = torch.tensor(detail).unsqueeze(0).float().to(device)
-            img = octave_img + detail
-        else:
-            img = octave_img
-
-        img = optimize_image(n_iterations, img, layers, learning_rate)
-        detail = img-octave_img
-    
-    return img
-
-    # Make the list low to high res
-    octave_imgs.reverse()
-
-
-
-# print(print_probs(F.softmax(net(img), dim=1)[0]))
-# print_probs(F.softmax(net(img)))
-
-# for proc in psutil.process_iter():
-#     if proc.name() == "display":
-#         proc.kill()
+img = optimize(img=img, net=net, objective="channel",
+               layer='inception3a.branch1', channel=0)
 
 img = img[0].cpu()
 img = inverse_transform(img)
 img.show()
+
+time.sleep(20)
+
+for proc in psutil.process_iter():
+    if proc.name() == "display":
+        proc.kill()
+
